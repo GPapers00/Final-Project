@@ -51,3 +51,15 @@ typedef struct {
     int record_count;
     int has_smart_watch;
 } SleepTracker;
+
+int main() {
+    SleepTracker tracker = {0};
+    HealthMetrics passing_health = {0};
+    int choice;
+
+    printf("Welcome to the Advanced Sleep Tracking Program\n");
+
+    return 0;
+}
+
+
