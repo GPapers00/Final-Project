@@ -54,7 +54,12 @@ typedef struct {
 
 void initialize_profile(SleepTracker *tracker);
 void record_sleep_session(HealthMetrics *passing_health, SleepTracker *tracker);
+void analyze_sleep_patterns(SleepTracker *tracker);
+float calculate_sleep_score(SleepTracker *tracker);
 void provide_sleep_recommendations(HealthMetrics *passing_health, SleepTracker *tracker);
+void check_smart_watch_availability(SleepTracker *tracker);
+void input_date(Date *date);
+int validate_date(Date *date);
 
 int main() {
     SleepTracker tracker = {0};
@@ -63,7 +68,86 @@ int main() {
 
     printf("Welcome to the Advanced Sleep Tracking Program\n");
 
+    check_smart_watch_availability(&tracker);
+
+    initialize_profile(&tracker);
+
+    while (1) {
+        printf("\n--- Sleep Tracking Menu ---\n");
+        printf("1. Record Sleep Session\n");
+        printf("2. Analyze Sleep Patterns\n");
+        printf("3. View Sleep Score\n");
+        printf("4. Get Sleep Recommendations\n");
+        printf("5. Exit\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1:
+                record_sleep_session(&passing_health, &tracker);
+                break;
+            case 2:
+                analyze_sleep_patterns(&tracker);
+                break;
+            case 3: {
+                float sleep_score = calculate_sleep_score(&tracker);
+                printf("Your Sleep Score: %.2f/100\n", sleep_score);
+                break;
+            }
+            case 4:
+                provide_sleep_recommendations(&passing_health, &tracker);
+                break;
+            case 5:
+                printf("Exiting Sleep Tracking Program. Sleep Well!\n");
+                return 0;
+            default:
+                printf("Invalid choice. Please try again.\n");
+        }
+    }
+
     return 0;
+}
+
+void input_date(Date *date) {
+    printf("Enter date (DD MM YYYY): ");
+    scanf("%d %d %d", &date->day, &date->month, &date->year);
+
+    while (!validate_date(date)) {
+        printf("Invalid date. Please enter a valid date (DD MM YYYY): ");
+        scanf("%d %d %d", &date->day, &date->month, &date->year);
+    }
+}
+
+int validate_date(Date *date) {
+    int days_in_month[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+    if (date->year < 2000 || date->year > 2100)
+        return 0;
+
+    if (date->month < 1 || date->month > 12)
+        return 0;
+
+    if (date->year % 4 == 0 && (date->year % 100 != 0 || date->year % 400 == 0))
+        days_in_month[1] = 29;
+
+    if (date->day < 1 || date->day > days_in_month[date->month - 1])
+        return 0;
+
+    return 1;
+}
+
+void check_smart_watch_availability(SleepTracker *tracker) {
+    char response;
+    printf("Do you have a smart watch that can track heart rate and oxygen levels? (Y/N): ");
+    scanf(" %c", &response);
+
+    if (response == 'Y' || response == 'y') {
+        tracker->has_smart_watch = 1;
+        printf("Smart watch detected. We'll use its data for more accurate tracking.\n");
+    } else {
+        tracker->has_smart_watch = 0;
+        printf("No smart watch detected. You'll need to manually input health metrics.\n");
+    }
 }
 
 void initialize_profile(SleepTracker *tracker) {
@@ -269,6 +353,56 @@ void record_sleep_session(HealthMetrics *passing_health, SleepTracker *tracker) 
     scanf("%f", &current_env->room_temperature);
 
     tracker->record_count++;
+}
+
+
+void analyze_sleep_patterns(SleepTracker *tracker) {
+    if (tracker->record_count == 0) {
+        printf("No sleep data recorded yet.\n");
+        return;
+    }
+
+    float total_sleep = 0, total_rem = 0, total_deep = 0;
+    for (int i = 0; i < tracker->record_count; i++) {
+        total_sleep += tracker->sleep_record[i].total_sleep_duration;
+        total_rem += tracker->sleep_record[i].rem_sleep_duration;
+        total_deep += tracker->sleep_record[i].deep_sleep_duration;
+    }
+
+    printf("\n--- Sleep Pattern Analysis ---\n");
+    printf("Average Total Sleep: %.2f hours\n", total_sleep / tracker->record_count);
+    printf("Average REM Sleep: %.2f minutes\n", total_rem / tracker->record_count);
+    printf("Average Deep Sleep: %.2f minutes\n", total_deep / tracker->record_count);
+}
+
+float calculate_sleep_score(SleepTracker *tracker) {
+    if (tracker->record_count == 0) return 0;
+
+    SleepData *latest_sleep = &tracker->sleep_record[tracker->record_count - 1];
+    HealthMetrics *latest_health = &tracker->health_data[tracker->record_count - 1];
+
+    float score = 0;
+
+    if (latest_sleep->total_sleep_duration >= 7 && latest_sleep->total_sleep_duration <= 9)
+        score += 40;
+    else
+        score += (40 * (1 - abs(latest_sleep->total_sleep_duration - 8) / 2));
+
+    score += (latest_sleep->deep_sleep_duration / 60.0) * 30;
+    score += (latest_sleep->rem_sleep_duration / 60.0) * 20;
+
+    if(tracker->has_smart_watch) {
+        if (latest_health->heart_rate >= 60 && latest_health->heart_rate <= 100) {
+            score += 10;
+        }
+    }
+
+    if (strstr(tracker->user.health_conditions, "chronic") || strstr(tracker->user.health_conditions, "mental") || strstr(tracker->user.health_conditions, "sleep apnea") || strstr(tracker->user.health_conditions, "insomnia") || strstr(tracker->user.health_conditions, "restless legs") || strstr(tracker->user.health_conditions, "narcolepsy")) {
+        printf("Health conditions detected: Adjusting sleep score slightly.\n");
+        score -= 5;
+    }
+
+    return (score > 100) ? 100 : score;
 }
 
 void provide_sleep_recommendations(HealthMetrics *passing_health, SleepTracker *tracker) {
